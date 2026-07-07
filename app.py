@@ -1,10 +1,24 @@
-
 import os
 import joblib
 import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.express as px
+
+# ============================================================
+# COMPATIBILIDAD SCIKIT-LEARN PARA STREAMLIT CLOUD
+# ============================================================
+
+try:
+    import sklearn.compose._column_transformer as ct
+
+    if not hasattr(ct, "_RemainderColsList"):
+        class _RemainderColsList(list):
+            pass
+
+        ct._RemainderColsList = _RemainderColsList
+except Exception:
+    pass
 
 # ============================================================
 # CONFIGURACIÓN GENERAL
@@ -101,6 +115,7 @@ pagina = st.sidebar.radio(
 
 if pagina == "Inicio":
     st.title("🎬 Predicción de Éxito Comercial de Películas")
+
     st.write(
         """
         Esta aplicación presenta una solución de analítica predictiva desarrollada para estimar
@@ -129,11 +144,7 @@ if pagina == "Inicio":
     )
 
     st.subheader("Flujo de la solución")
-    st.write(
-        """
-        **Dataset → Limpieza → EDA → Transformación → Modelado → Evaluación → Streamlit**
-        """
-    )
+    st.write("**Dataset → Limpieza → EDA → Transformación → Modelado → Evaluación → Streamlit**")
 
 # ============================================================
 # PÁGINA 2: DASHBOARD EDA
@@ -142,13 +153,6 @@ if pagina == "Inicio":
 elif pagina == "Dashboard EDA":
     st.title("📊 Dashboard EDA")
 
-    st.write(
-        """
-        En esta sección se presentan visualizaciones exploratorias para comprender el comportamiento
-        de las películas según género, presupuesto, ingresos, plataforma y éxito comercial.
-        """
-    )
-
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Películas", f"{len(df):,}")
     col2.metric("Blockbusters", f"{int(df['blockbuster_flag'].sum()):,}")
@@ -156,7 +160,17 @@ elif pagina == "Dashboard EDA":
     col4.metric("Budget promedio", f"${df['budget_million'].mean():.1f}M")
 
     st.subheader("Insight 1: Géneros con mayor presencia")
-    genre_counts = df["genre"].astype(str).str.split("|").explode().str.strip().value_counts().head(10).reset_index()
+
+    genre_counts = (
+        df["genre"]
+        .astype(str)
+        .str.split("|")
+        .explode()
+        .str.strip()
+        .value_counts()
+        .head(10)
+        .reset_index()
+    )
     genre_counts.columns = ["genre", "cantidad"]
 
     fig_genre = px.bar(
@@ -169,11 +183,10 @@ elif pagina == "Dashboard EDA":
     )
     st.plotly_chart(fig_genre, use_container_width=True)
 
-    st.info(
-        "Los géneros con mayor frecuencia permiten identificar las categorías cinematográficas más representativas del dataset."
-    )
+    st.info("Los géneros con mayor frecuencia permiten identificar las categorías cinematográficas más representativas del dataset.")
 
     st.subheader("Insight 2: Relación entre presupuesto e ingresos")
+
     sample_df = df.sample(min(5000, len(df)), random_state=42)
 
     fig_scatter = px.scatter(
@@ -192,11 +205,10 @@ elif pagina == "Dashboard EDA":
     )
     st.plotly_chart(fig_scatter, use_container_width=True)
 
-    st.info(
-        "Se observa que las películas con mayor presupuesto suelen presentar mayores ingresos, aunque el presupuesto por sí solo no garantiza el éxito comercial."
-    )
+    st.info("Se observa que las películas con mayor presupuesto suelen presentar mayores ingresos, aunque el presupuesto por sí solo no garantiza el éxito comercial.")
 
     st.subheader("Insight 3: Evolución de blockbusters por año")
+
     yearly = df.groupby("release_year")["blockbuster_flag"].sum().reset_index()
 
     fig_year = px.line(
@@ -208,11 +220,10 @@ elif pagina == "Dashboard EDA":
     )
     st.plotly_chart(fig_year, use_container_width=True)
 
-    st.info(
-        "La evolución temporal permite identificar periodos donde se incrementó la producción de películas con alto éxito comercial."
-    )
+    st.info("La evolución temporal permite identificar periodos donde se incrementó la producción de películas con alto éxito comercial.")
 
     st.subheader("Distribución por plataforma de streaming")
+
     platform_counts = df["streaming_platform"].value_counts().head(10).reset_index()
     platform_counts.columns = ["platform", "cantidad"]
 
@@ -234,8 +245,8 @@ elif pagina == "Predicción":
 
     st.write(
         """
-        Ingrese las características de una película para estimar la probabilidad de que sea
-        clasificada como blockbuster.
+        Ingrese las características de una película para estimar la probabilidad
+        de que sea clasificada como blockbuster.
         """
     )
 
@@ -246,43 +257,61 @@ elif pagina == "Predicción":
     for col in features:
         if col == "release_year":
             inputs[col] = st.sidebar.number_input("Año de estreno", min_value=1950, max_value=2026, value=2024)
+
         elif col == "decade":
             inputs[col] = st.sidebar.selectbox("Década", [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020], index=7)
+
         elif col == "runtime_min":
             inputs[col] = st.sidebar.number_input("Duración (min)", min_value=60, max_value=240, value=120)
+
         elif col == "genre_count":
             inputs[col] = st.sidebar.number_input("Cantidad de géneros", min_value=1, max_value=5, value=2)
+
         elif col == "budget_million":
             inputs[col] = st.sidebar.number_input("Presupuesto (millones)", min_value=0.0, max_value=300.0, value=100.0)
+
         elif col == "marketing_budget_million":
             inputs[col] = st.sidebar.number_input("Marketing (millones)", min_value=0.0, max_value=200.0, value=60.0)
+
         elif col == "award_nominations":
             inputs[col] = st.sidebar.number_input("Nominaciones", min_value=0, max_value=100, value=4)
+
         elif col == "award_wins":
             inputs[col] = st.sidebar.number_input("Premios ganados", min_value=0, max_value=50, value=1)
+
         elif col == "franchise_flag":
             inputs[col] = st.sidebar.selectbox("¿Pertenece a franquicia?", [0, 1], format_func=lambda x: "Sí" if x == 1 else "No")
+
         elif col == "genre":
             inputs[col] = st.sidebar.selectbox("Género", ["Action", "Adventure", "Comedy", "Drama", "Thriller", "Horror", "Animation", "Other"])
+
         elif col == "subgenre":
             inputs[col] = st.sidebar.selectbox("Subgénero", ["Superhero", "Sci-Fi", "Comedy Animation", "Crime", "Romance", "Other"])
+
         elif col == "country":
             inputs[col] = st.sidebar.selectbox("País", ["United States", "United Kingdom", "India", "France", "Japan", "Other"])
+
         elif col == "language":
             inputs[col] = st.sidebar.selectbox("Idioma", ["English", "Spanish", "French", "Hindi", "Japanese", "Other"])
+
         elif col == "streaming_platform":
             inputs[col] = st.sidebar.selectbox("Plataforma", ["Cinema", "Netflix", "Disney+", "Prime Video", "Apple TV+", "Other"])
-        elif col in ["imdb_rating", "metascore", "audience_score", "popularity_score", "votes"]:
-            if col == "imdb_rating":
-                inputs[col] = st.sidebar.slider("IMDb Rating", 0.0, 10.0, 7.0)
-            elif col == "metascore":
-                inputs[col] = st.sidebar.slider("Metascore", 0, 100, 65)
-            elif col == "audience_score":
-                inputs[col] = st.sidebar.slider("Audience Score", 0, 100, 70)
-            elif col == "popularity_score":
-                inputs[col] = st.sidebar.slider("Popularity Score", 0.0, 100.0, 60.0)
-            elif col == "votes":
-                inputs[col] = st.sidebar.number_input("Votes", min_value=0, max_value=2000000, value=50000)
+
+        elif col == "imdb_rating":
+            inputs[col] = st.sidebar.slider("IMDb Rating", 0.0, 10.0, 7.0)
+
+        elif col == "metascore":
+            inputs[col] = st.sidebar.slider("Metascore", 0, 100, 65)
+
+        elif col == "audience_score":
+            inputs[col] = st.sidebar.slider("Audience Score", 0, 100, 70)
+
+        elif col == "popularity_score":
+            inputs[col] = st.sidebar.slider("Popularity Score", 0.0, 100.0, 60.0)
+
+        elif col == "votes":
+            inputs[col] = st.sidebar.number_input("Votes", min_value=0, max_value=2000000, value=50000)
+
         else:
             inputs[col] = st.sidebar.text_input(col, "Other")
 
@@ -307,12 +336,7 @@ elif pagina == "Predicción":
         else:
             st.warning("Resultado: La película no presenta alta probabilidad de ser blockbuster.")
 
-        st.write(
-            """
-            Esta predicción puede apoyar decisiones relacionadas con inversión, marketing,
-            selección de proyectos y planificación de lanzamiento.
-            """
-        )
+        st.write("Esta predicción puede apoyar decisiones relacionadas con inversión, marketing, selección de proyectos y planificación de lanzamiento.")
 
 # ============================================================
 # PÁGINA 4: MACHINE LEARNING
@@ -333,11 +357,10 @@ elif pagina == "Machine Learning":
     )
     st.plotly_chart(fig_models, use_container_width=True)
 
-    st.info(
-        "Gradient Boosting fue seleccionado como modelo final debido a que obtuvo el mejor ROC-AUC y un adecuado equilibrio entre las métricas evaluadas."
-    )
+    st.info("Gradient Boosting fue seleccionado como modelo final debido a que obtuvo el mejor ROC-AUC y un adecuado equilibrio entre las métricas evaluadas.")
 
     st.subheader("Métricas del modelo ganador")
+
     fig_metrics = px.bar(
         metricas_modelo,
         x="metrica",
@@ -348,7 +371,11 @@ elif pagina == "Machine Learning":
     st.plotly_chart(fig_metrics, use_container_width=True)
 
     st.subheader("Importancia de variables")
-    top_importance = feature_importance.sort_values(by=feature_importance.columns[-1], ascending=False).head(15)
+
+    top_importance = feature_importance.sort_values(
+        by=feature_importance.columns[-1],
+        ascending=False
+    ).head(15)
 
     fig_importance = px.bar(
         top_importance,
@@ -359,9 +386,7 @@ elif pagina == "Machine Learning":
     )
     st.plotly_chart(fig_importance, use_container_width=True)
 
-    st.info(
-        "La importancia de variables permite identificar qué factores influyen más en la predicción del éxito comercial."
-    )
+    st.info("La importancia de variables permite identificar qué factores influyen más en la predicción del éxito comercial.")
 
     st.subheader("Matriz de confusión")
     st.dataframe(matriz_confusion)
@@ -375,12 +400,13 @@ elif pagina == "Caso de prueba":
 
     st.write(
         """
-        Caso simulado: película de acción con alto presupuesto, inversión relevante en marketing
-        y pertenencia a franquicia.
+        Caso simulado: película de acción con alto presupuesto, inversión relevante
+        en marketing y pertenencia a franquicia.
         """
     )
 
     caso_demo = {}
+
     for col in features:
         if col == "release_year":
             caso_demo[col] = 2025
@@ -436,12 +462,7 @@ elif pagina == "Caso de prueba":
     else:
         st.warning("El modelo predice que la película no tendría alta probabilidad de ser blockbuster.")
 
-    st.write(
-        """
-        Este caso permite demostrar cómo la aplicación puede utilizarse para simular escenarios
-        antes de invertir en una producción cinematográfica.
-        """
-    )
+    st.write("Este caso permite demostrar cómo la aplicación puede utilizarse para simular escenarios antes de invertir en una producción cinematográfica.")
 
 # ============================================================
 # PÁGINA 6: CONCLUSIONES
@@ -452,8 +473,8 @@ elif pagina == "Conclusiones":
 
     st.write(
         """
-        El proyecto permitió construir una solución integral de analítica predictiva para estimar
-        el éxito comercial de películas mediante Machine Learning.
+        El proyecto permitió construir una solución integral de analítica predictiva
+        para estimar el éxito comercial de películas mediante Machine Learning.
         """
     )
 
