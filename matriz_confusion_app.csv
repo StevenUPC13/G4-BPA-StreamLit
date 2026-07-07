@@ -1,0 +1,5 @@
+real,predicho,cantidad
+No blockbuster,No blockbuster,21485
+No blockbuster,Blockbuster,1757
+Blockbuster,No blockbuster,3447
+Blockbuster,Blockbuster,3311
